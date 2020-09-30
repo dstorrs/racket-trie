@@ -186,8 +186,10 @@
                               #:combine [combine   identity]
                               #:sort    [sort-func identity]
                               #:post    [post      identity])
-  (->* (trie?) (#:pre  procedure? #:combine (-> list? any/c)
-                #:sort procedure? #:post procedure?) any)
+  (->* (trie?)
+       (#:pre  (-> any/c any/c) #:combine (-> list? any/c)
+        #:sort (-> list? list?) #:post procedure?)
+       any)
   #;
   (h (bp "/")
      (c #t
