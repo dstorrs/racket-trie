@@ -49,6 +49,27 @@
        "trie-add-item! 'bi' worked; trie now has 'bi' and 'buy'"))
 
   (test-suite
+   "checking emptiness, clearing, getting elements"
+
+   (define root (make-trie-root))
+   (ok (trie-is-empty? root) "on creation, root node is empty")
+   (trie-add-item! root (splitter "buy"))
+   (is-false (trie-is-empty? root) "after adding an item, root node is not empty"))
+
+  (test-suite
+   "checking emptiness, clearing, getting elements"
+
+   (define root (make-trie-root))
+   (trie-add-item! root (splitter "buy"))
+   (is (trie-get-elements root) '("b") "got expected elements from trie containing 'buy'")
+   (trie-add-item! root (splitter "foo"))
+   (is (sort (trie-get-elements root) string<?)
+       '("b" "f")
+       "got expected elements for trie containing 'buy' and 'foo'"))
+
+
+
+  (test-suite
    "adding non-string items"
 
    (define root (make-trie-root))
@@ -126,5 +147,18 @@
              "/home/dstorrs/todo.txt"
              "/home/dstorrs/writing/patchwork-realms"
              "/home/dstorrs/writing/two-year-emperor")
-       "successfully unrolled trie"))
+       "successfully unrolled trie")
+
+   (ok (match (trie-unroll root)
+         [(list-no-order
+           (app (curry map path->string) '("/"))
+           (app (curry map path->string) '("/" "bin" "bash"))
+           (app (curry map path->string) '("/" "home" "bob" "grocery-list.txt"))
+           (app (curry map path->string) '("/" "home" "dstorrs" "taxes" "2018.pdf"))
+           (app (curry map path->string) '("/" "home" "dstorrs" "todo.txt"))
+           (app (curry map path->string) '("/" "home" "dstorrs" "writing" "patchwork-realms"))
+           (app (curry map path->string) '("/" "home" "dstorrs" "writing" "two-year-emperor")))
+          #t]
+         [_ #f])
+       "successfully unrolled trie with no args"))
   )
