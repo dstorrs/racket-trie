@@ -1,8 +1,9 @@
 #lang info
-(define collection "racket-trie")
-(define deps '("base"))
+
+(define collection "trie")
+(define deps '("base" "handy"))
 (define build-deps '("scribble-lib" "racket-doc" "rackunit-lib"))
 (define scribblings '(("scribblings/racket-trie.scrbl" ())))
-(define pkg-desc "Description Here")
-(define version "0.0")
-(define pkg-authors '(dstorrs))
+(define pkg-desc "Implements the trie data structure")
+(define version "0.1")
+(define pkg-authors '("David K. Storrs"))
