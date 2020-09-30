@@ -1,8 +1,15 @@
 #lang racket
 
 (require handy)
-(provide (except-out (all-defined-out)
-                     trie-get-node))
+(provide make-trie-root
+         trie?
+         trie-is-empty?
+         clear-trie
+         trie-get-elements
+         trie-add-item!
+         trie-contains?
+         trie-contains?/update!
+         trie-unroll)
 
 ;;  A trie is a tree where each node has a value, a flag saying whether
 ;;  it's a terminal node, and zero or more children.  The normal case
