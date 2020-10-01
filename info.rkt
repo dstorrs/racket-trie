@@ -2,7 +2,7 @@
 
 (define collection "trie")
 (define deps '("base" "handy"))
-(define build-deps '("scribble-lib" "racket-doc" "rackunit-lib"))
+(define build-deps '("scribble-lib" "racket-doc" "rackunit-lib" "sandbox-lib"))
 (define scribblings '(("scribblings/trie.scrbl" ())))
 (define pkg-desc "Implements the trie data structure")
 (define version "0.1")
