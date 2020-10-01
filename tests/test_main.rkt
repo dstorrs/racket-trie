@@ -29,23 +29,23 @@
    (define root (make-trie-root))
    (is (trie-add-item! root (splitter "buy"))
        (h "b"
-          (c #f
+          (trie-node #f '()
              (h "u"
-                (c #f
+                (trie-node #f '()
                    (h "y"
-                      (c #t
+                      (trie-node #t '()
                          (h)))))))
        "trie-add-item! 'buy' worked")
 
    (is (trie-add-item! root (splitter "bi"))
        (h "b"
-          (c #f
+          (trie-node #f '()
              (h "u"
-                (c #f
+                (trie-node #f '()
                    (h "y"
-                      (c #t
+                      (trie-node #t '()
                          (h))))
-                "i" (c #t (h)))))
+                "i" (trie-node #t '() (h)))))
        "trie-add-item! 'bi' worked; trie now has 'bi' and 'buy'"))
 
   (test-suite
@@ -83,22 +83,22 @@
 
    (is root
        (h (bp "/")
-          (c #t
+          (trie-node #t '()
              (h (bp "bin")
-                (c #f
+                (trie-node #f '()
                    (h (bp "bash")
-                      (c #t (h))))
+                      (trie-node #t '() (h))))
                 (bp "home")
-                (c #f
+                (trie-node #f '()
                    (h (bp "bob")
-                      (c #f
-                         (h (bp "grocery-list.txt") (c #t (h))))
+                      (trie-node #f '()
+                         (h (bp "grocery-list.txt") (trie-node #t '() (h))))
                       (bp "dstorrs")
-                      (c #f
-                         (h (bp "todo.txt") (c #t (h))
-                            (bp "taxes")    (c #f (h (bp "2018.pdf")         (c #t (h))))
-                            (bp "writing")  (c #f (h (bp "patchwork-realms") (c #t (h))
-                                                     (bp "two-year-emperor") (c #t (h))))))))
+                      (trie-node #f '()
+                         (h (bp "todo.txt") (trie-node #t '() (h))
+                            (bp "taxes")    (trie-node #f '() (h (bp "2018.pdf")         (trie-node #t '() (h))))
+                            (bp "writing")  (trie-node #f '() (h (bp "patchwork-realms") (trie-node #t '() (h))
+                                                     (bp "two-year-emperor") (trie-node #t '() (h))))))))
                 )))
        "successfully inserted paths")
    )
@@ -116,13 +116,13 @@
        "trie-contains?/update! thing 'bik' returns true...")
    (is thing
        (h "b"
-          (c #f
+          (trie-node #f '()
              (h "i"
-                (c #f
+                (trie-node #f '()
                    (h "k"
-                      (c #t
+                      (trie-node #t '()
                          (h "e"
-                            (c #t (h)))))))))
+                            (trie-node #t '() (h)))))))))
        "...and correctly updated the 'terminal?' value for bik"))
 
   (test-suite

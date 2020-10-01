@@ -1,6 +1,6 @@
 #lang racket
 
-(require handy)
+(require handy struct-plus-plus)
 (provide make-trie-root
          trie?
          trie-is-empty?
@@ -9,7 +9,14 @@
          trie-add-item!
          trie-contains?
          trie-contains?/update!
-         trie-unroll)
+         trie-unroll
+
+         (struct-out trie-node)
+         trie-node++
+         trie-node.terminal?
+         trie-node.data
+         trie-node.kids
+         )
 
 ;;  A trie is a tree where each node has a value, a flag saying whether
 ;;  it's a terminal node, and zero or more children.  The normal case
@@ -83,11 +90,18 @@
 ; Don't use hash/c because it could be really slow for a large trie.
 (define trie? (and/c hash? (not/c immutable?)))
 
-(define (trie-node? e)
-  (and (mpair?   e)
-       (boolean? (mcar e))
-       (hash?    (mcdr e))
-       (not      (immutable? (mcdr e)))))
+(struct++ trie-node ([terminal? boolean?]
+                     [(data '()) any/c]
+                     [(kids (make-trie-root)) trie?])
+          (#:omit-reflection)
+          #:prefab
+          #:mutable)
+
+(define/contract (trie-node-has-key? node key)
+  (-> trie-node? any/c any/c)
+  (hash-has-key? (trie-node.kids node) key))
+
+(define trie-has-key? hash-has-key?)
 
 (define/contract (make-trie-root)
   (-> trie?)
@@ -109,46 +123,29 @@
   (-> trie? any/c trie-node?)
   (hash-ref t elem))
 
-(define/contract (trie-node.terminal? node)
-  (-> trie-node? boolean?)
-  (mcar node))
-(define trie-node-terminal? trie-node.terminal?)
-
-(define/contract (trie-node.kids node)
-  (-> trie-node? trie?)
-  (mcdr node))
-(define trie-node-kids trie-node.kids)
-
-(define/contract (set-trie-node-terminal?! node val)
-  (-> trie-node? boolean? trie-node?)
-  (set-mcar! node val)
-  node)
 
 (define/contract (trie-add-item! root elements)
   (-> trie? (listof any/c) trie?)
 
-  (let add-next-val ([lst          elements]
-                     [current-node root])
+  (let add-next-val ([lst      elements]
+                     [the-trie root])
     (match lst
       ['()     root]
       ;
       [(list key)
-       #:when (hash-has-key? current-node key)
-       (define entry (trie-get-node current-node key))
-       (set-mcar! entry #t)
+       #:when (trie-has-key? the-trie key)
+       (define entry (trie-get-node the-trie key))
+       (set-trie-node-terminal?! entry #t)
        root]
       ;
       [(list key others ...)
-       #:when (hash-has-key? current-node key)
-       (add-next-val others
-                     (trie-node.kids (trie-get-node current-node
-                                                    key)))]
+       #:when (trie-has-key? the-trie key)
+       (add-next-val others (trie-node.kids (trie-get-node the-trie key)))]
       ;
       [(list key others ...)
        (define kids (make-hash))
-       (hash-set! current-node key (mcons (null? others) kids))
-       (add-next-val others kids)]))
-  )
+       (hash-set! the-trie key (trie-node++ #:terminal? (null? others) #:kids kids))
+       (add-next-val others kids)])))
 
 
 (define/contract (trie-contains?/update! root keys #:update? [update? #t])
@@ -162,18 +159,18 @@
   ; for the string and inserting the string)
 
   (let loop ([current root]
-             [keys keys])
+             [keys    keys])
     (match keys
       ['()                   #t] ; a trie always contains the null entry
       [(list key)
-       #:when (hash-has-key? current key)
+       #:when (trie-has-key? current key)
        (define node (trie-get-node current key))
        (when update?
          (set-trie-node-terminal?! node #t))
        (trie-node.terminal? node)]
       [(list key)            #f]
       [(list key others ...)
-       #:when (hash-has-key? current key)
+       #:when (trie-has-key? current key)
        (loop (trie-node.kids (trie-get-node current key)) others)]
       [_ #f])))
 (define trie-contains? (curryr trie-contains?/update! #:update? #f))
@@ -206,7 +203,8 @@
       [(hash-table)
 
        result]
-      [(hash-table (element (mcons is-terminal? kids))) ; @@ Update if implementation changes
+      [(hash-table (element (mcons is-terminal?
+                                   (trie-node _ kids _)))) ; @@ Update if implementation changes
        (define next (cons (pre element) current))
        (unroll kids
                (if is-terminal? (set-add result (combine (reverse next))) result)
