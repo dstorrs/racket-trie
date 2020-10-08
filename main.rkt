@@ -1,21 +1,34 @@
-#lang racket
+#lang racket/base
 
-(require handy struct-plus-plus)
+(require racket/contract/base
+         racket/contract/region
+         racket/function
+         racket/hash
+         racket/list
+         racket/match
+         racket/set
+         struct-plus-plus)
+
 (provide make-trie-root
          trie?
          trie-is-empty?
          clear-trie
          trie-get-elements
+         trie-get-subtrie
          trie-add-item!
+         trie-add-item+data!
          trie-contains?
          trie-contains?/update!
          trie-unroll
+         trie-unroll+data
 
          (struct-out trie-node)
          trie-node++
          trie-node.terminal?
          trie-node.data
          trie-node.kids
+
+         trie-node-default-data
          )
 
 ;;  A trie is a tree where each node has a value, a flag saying whether
@@ -89,19 +102,37 @@
 
 ; Don't use hash/c because it could be really slow for a large trie.
 (define trie? (and/c hash? (not/c immutable?)))
+(define trie-has-key? hash-has-key?)
 
-(struct++ trie-node ([terminal? boolean?]
-                     [(data '()) any/c]
-                     [(kids (make-trie-root)) trie?])
+(define trie-node-default-data (make-parameter (void)))
+
+(struct++ trie-node ([terminal?                       boolean?]
+                     [(data (trie-node-default-data)) any/c]
+                     [(kids (make-trie-root))         trie?])
           (#:omit-reflection)
           #:prefab
           #:mutable)
 
+;;----------------------------------------------------------------------
+
 (define/contract (trie-node-has-key? node key)
-  (-> trie-node? any/c any/c)
+  (-> trie-node? any/c boolean?)
   (hash-has-key? (trie-node.kids node) key))
 
-(define trie-has-key? hash-has-key?)
+(define/contract (update-trie-node-terminal?! the-trie the-key new-val)
+  (-> trie? any/c boolean? trie?)
+  (define the-node (trie-get-node the-trie the-key))
+  (set-trie-node-terminal?! (hash-ref the-trie the-key) new-val)
+  the-trie)
+
+;;----------------------------------------------------------------------
+
+(define/contract (set-trie-node! the-trie key new-node)
+  (-> trie? any/c trie-node? trie?)
+  (hash-set! the-trie key new-node)
+  the-trie)
+
+;;----------------------------------------------------------------------
 
 (define/contract (make-trie-root)
   (-> trie?)
@@ -119,14 +150,33 @@
   (-> trie? list?)
   (hash-keys t))
 
-(define/contract (trie-get-node t elem)
-  (-> trie? any/c trie-node?)
-  (hash-ref t elem))
+;;----------------------------------------------------------------------
 
+(define/contract (trie-get-node t key)
+  (-> trie? any/c trie-node?)
+  (hash-ref t key))
+
+(define/contract (trie-get-subtrie root all-keys)
+  (-> trie? list? trie?)
+
+  (let loop ([current root]
+             [keys    all-keys])
+    (match keys
+      [(list key others ...)
+       #:when (trie-has-key? current key)
+       (define subtrie (trie-node.kids (trie-get-node current key)))
+       (if (null? others)
+           subtrie
+           (loop subtrie others))]
+      [_
+       (raise-arguments-error 'trie-get-subtrie
+                              "subtrie not found at key specification"
+                              "all keys"    keys)])))
+
+;;----------------------------------------------------------------------
 
 (define/contract (trie-add-item! root elements)
   (-> trie? (listof any/c) trie?)
-
   (let add-next-val ([lst      elements]
                      [the-trie root])
     (match lst
@@ -134,8 +184,7 @@
       ;
       [(list key)
        #:when (trie-has-key? the-trie key)
-       (define entry (trie-get-node the-trie key))
-       (set-trie-node-terminal?! entry #t)
+       (update-trie-node-terminal?! the-trie key #t)
        root]
       ;
       [(list key others ...)
@@ -143,9 +192,68 @@
        (add-next-val others (trie-node.kids (trie-get-node the-trie key)))]
       ;
       [(list key others ...)
-       (define kids (make-hash))
-       (hash-set! the-trie key (trie-node++ #:terminal? (null? others) #:kids kids))
+       (define kids (make-trie-root))
+       (set-trie-node! the-trie key (trie-node++ #:terminal? (null? others) #:kids kids))
        (add-next-val others kids)])))
+
+;;----------------------------------------------------------------------
+
+(define/contract (trie-add-item+data! root elements #:mode mode)
+  (-> trie? (listof any/c) #:mode (or/c 'replace 'meld/prefer-current 'meld/prefer-new) trie?)
+
+  (match (last elements)
+    [(cons _ (and (trie-node #f _ _) node))
+     (raise-arguments-error 'trie-add-item+data!
+                            "If final element is a trie-node it must have #:terminal? #t"
+                            "final element" node)]
+    [_ 'ok])
+
+  (define combiner
+    (match mode
+      ['replace             (λ (current new)
+                              new)]
+      ['meld/prefer-current (λ (current new)
+                              (define current-kids (trie-node.kids current))
+                              (define new-kids     (trie-node.kids new))
+                              (hash-union! current-kids new-kids
+                                           #:combine (λ (c-val n-val) c-val))
+                              current)]
+      ['meld/prefer-new     (λ (current new)
+                              (define current-kids (trie-node.kids current))
+                              (define new-kids     (trie-node.kids new))
+                              (hash-union! current-kids new-kids
+                                           #:combine (λ (c-val n-val) n-val))
+                              current)]))
+
+  (let add-next-val ([the-trie root]
+                     [lst      elements])
+    (match lst
+      ['() root]
+      [(list (cons key (? trie-node? node)) others ...)
+       #:when (not (trie-has-key? the-trie key))
+       (set-trie-node! the-trie key node)
+       (add-next-val (trie-node.kids node) others)]
+      ;
+      [(list (cons key (? trie-node? node)) others ...)
+       (define new-node (combiner (trie-get-node the-trie key) node))
+       (set-trie-node! the-trie key new-node)
+       (add-next-val (trie-node.kids new-node) others)]
+      ;
+      [(list key others ...)
+       #:when (not (trie-has-key? the-trie key))
+       (define kids (make-trie-root))
+       (set-trie-node! the-trie
+                       key
+                       (trie-node++ #:terminal? (null? others)
+                                    #:kids kids))
+       (add-next-val kids others)]
+      [(list key others ...)
+       #:when (trie-has-key? the-trie key) ; this is unneeded but for self-documentation
+       (define node (trie-get-node the-trie key))
+       (when (null? others)
+         (set-trie-node-terminal?! node #t))
+
+       (add-next-val (trie-node.kids node) others)])))
 
 
 (define/contract (trie-contains?/update! root keys #:update? [update? #t])
@@ -187,25 +295,17 @@
        (#:pre  (-> any/c any/c) #:combine (-> list? any/c)
         #:sort (-> list? list?) #:post procedure?)
        any)
-  #;
-  (h (bp "/")
-     (c #t
-        (h (bp "home")
-           (c #f
-              (h (bp "dstorrs")
-                 (c #f
-                    (h (bp "todo.txt") (c #t (h))
-                       (bp "taxes")    (c #f (h (bp "2018.pdf")         (c #t (h))))
-                       (bp "writing")  (c #f (h (bp "patchwork-realms") (c #t (h))
-                                                (bp "two-year-emperor") (c #t (h)))))))))))
-  (define (unroll the-trie result current)
+
+  ; 'keys' is the list of keys that leads to a particular element
+  (define (unroll the-trie result keys)
     (match the-trie
       [(hash-table)
-
        result]
-      [(hash-table (element (mcons is-terminal?
-                                   (trie-node _ kids _)))) ; @@ Update if implementation changes
-       (define next (cons (pre element) current))
+      [(hash-table (key (list is-terminal? data kids))) ; @@ Update if implementation changes
+       (define next (cons (if (unsupplied-arg? data)
+                              (pre key)
+                              (cons (pre key) data))
+                          keys))
        (unroll kids
                (if is-terminal? (set-add result (combine (reverse next))) result)
                next)]
@@ -213,14 +313,46 @@
        ; There are multiple elements in the trie
        (apply set-union
               (cons result
-                    (for/list ([element (in-list (trie-get-elements the-trie))])
-                      (define next         (cons (pre element) current))
-                      (define node         (trie-get-node the-trie element))
+                    (for/list ([key (in-list (trie-get-elements the-trie))])
+                      (define next         (cons (pre key) keys))
+                      (define node         (trie-get-node the-trie key))
                       (define is-terminal? (trie-node.terminal?    node))
-                      (define kids         (trie-node.kids         node))
+                      (define kids         (trie-node.kids     node))
                       (unroll kids
                               (if is-terminal?
                                   (set-add result (combine (reverse next)))
                                   result)
                               next))))]))
+  (post (sort-func (set->list (unroll the-trie (set) '())))))
+
+;;----------------------------------------------------------------------
+
+(define/contract (trie-unroll+data the-trie
+                                   #:pre     [pre       identity]
+                                   #:combine [combine   identity]
+                                   #:sort    [sort-func identity]
+                                   #:post    [post      identity])
+  (->* (trie?)
+       (#:pre  (-> any/c any/c) #:combine (-> list? any/c)
+        #:sort (-> list? list?) #:post procedure?)
+       any)
+
+  ; 'elements' is the list of (cons key data) that leads to a particular element
+  (define (unroll the-trie result elements)
+    (match the-trie
+      [(hash-table)  result]
+      [(hash-table (key (trie-node is-terminal? data kids)))
+       (define element (cons key  (trie-node++ #:terminal? is-terminal?
+                                               #:data      data)))
+       (define new-elements (cons element elements))
+       (unroll kids
+               (if is-terminal?
+                   (set-add result (combine (reverse new-elements)))
+                   result)
+               new-elements)]
+      [_
+       ; There are multiple elements in the trie
+       (apply set-union
+              (for/list ([(key node) (in-hash the-trie)])
+                (unroll (set-trie-node! (make-trie-root) key node) result elements)))]))
   (post (sort-func (set->list (unroll the-trie (set) '())))))
