@@ -3,10 +3,10 @@
 (require racket/contract/base
          racket/contract/region
          racket/function
-         racket/hash
          racket/list
          racket/match
          racket/set
+         handy/hash
          struct-plus-plus)
 
 (provide make-trie-root
@@ -198,8 +198,60 @@
 
 ;;----------------------------------------------------------------------
 
-(define/contract (trie-add-item+data! root elements #:mode mode)
-  (-> trie? (listof any/c) #:mode (or/c 'replace 'meld/prefer-current 'meld/prefer-new) trie?)
+;;  Add an item and some associated data to an existing trie.  The
+;;  complicated bit is when a new node must be combined with an
+;;  existing one.
+;;
+;;    *) terminal?:  In all cases, the final node is marked terminal if either the
+;;    old or new nodes are marked terminal.
+;;
+;;    *) kids:  In all cases, 'kids' will be updated to contain all elements
+;;    of the new item
+;;
+;;    *) data:  Depends on the value of the #:combine parameter.  Options include:
+;;
+;;      (-> trie-node? trie-node? trie-node?) : The current and new
+;;      trie-node values are passed to the function and the resulting
+;;      trie-node is used.
+;;
+;;      'keep : The existing node's data is preserved, the new node's
+;;      data is ignored.
+;;
+;;      'replace : The new node's data is preserved, the existing
+;;      node's data is discarded.
+;;
+;;      'meld/current : The two data values are combined with current
+;;      data having precedence.  See below for details.
+;;
+;;      'meld/new : The two data values are combined with new data
+;;      having precedence.  See below for details.
+;;
+;;
+;;   In the case of 'meld/*, data is combined as follows:
+;;
+;;     If the values are the same then the result will be that value.
+;;
+;;     If both values are hashes they will be combined with (hash-meld)
+;;     from the 'handy' module.  Entries from the hash that has
+;;     precedence will overwrite matching values from the other hash.
+;;
+;;     If exactly one of the values is unset (i.e., if it is equal? to
+;;     the current value of the trie-node-default-data parameter) then
+;;     the other will be used.
+;;
+;;     If both of the values are unset (i.e., if they are equal? to
+;;     the current value of the trie-node-default-data parameter) then
+;;     the result will be the default value.
+;;
+;;     In all other cases, the result will be a list containing the
+;;     two values, where the first element in the list is the data
+;;     that has precedence.
+
+(define/contract (trie-add-item+data! root elements #:combine [combine-method 'meld/new])
+  (->* (trie? (listof any/c))
+       (#:combine (or/c 'keep 'replace 'meld/current 'meld/new
+                        (-> trie-node? trie-node? trie-node?)))
+       trie?)
 
   (match (last elements)
     [(cons _ (and (trie-node #f _ _) node))
@@ -208,22 +260,45 @@
                             "final element" node)]
     [_ 'ok])
 
+  (define default (trie-node-default-data))
+  (define (meld arg-with-precedence arg2)
+    (match (list  arg-with-precedence arg2)
+      [(list a b)  #:when (equal? a b)       a]
+      [(list a b)  #:when (equal? a default) b]
+      [(list a b)  #:when (equal? b default) a]
+      [(list (? hash? a) (? hash? b))
+       (hash-meld arg2  arg-with-precedence)]
+      [(list a b) (list arg-with-precedence arg2)]))
+
+  (define is-default? (curry equal? default))
+  (define (new-term? . args) (ormap trie-node.terminal? args))
+  (define (meld-data . args) (apply meld (map trie-node.data args)))
+  (define (meld-kids . args) (apply meld (map trie-node.kids args)))
+  
   (define combiner
-    (match mode
-      ['replace             (λ (current new)
-                              new)]
-      ['meld/prefer-current (λ (current new)
-                              (define current-kids (trie-node.kids current))
-                              (define new-kids     (trie-node.kids new))
-                              (hash-union! current-kids new-kids
-                                           #:combine (λ (c-val n-val) c-val))
-                              current)]
-      ['meld/prefer-new     (λ (current new)
-                              (define current-kids (trie-node.kids current))
-                              (define new-kids     (trie-node.kids new))
-                              (hash-union! current-kids new-kids
-                                           #:combine (λ (c-val n-val) n-val))
-                              current)]))
+    (match combine-method
+      [(? procedure?)   combine-method]
+      ['keep            (λ (current new)
+                          (trie-node++ #:terminal? (new-term? current new)
+                                       #:data      (if (is-default? (trie-node.data current))
+                                                       (trie-node.data new)
+                                                       (trie-node.data current))
+                                       #:kids      (meld-kids current new)))]
+      ['replace         (λ (current new)
+                          (trie-node++ #:terminal? (new-term? current new)
+                                       #:data      (if (is-default? (trie-node.data new))
+                                                       (trie-node.data current)
+                                                       (trie-node.data new))
+                                       #:kids      (meld-kids new current)))]
+      ['meld/current    (λ (current new)
+                          (trie-node++ #:terminal? (new-term? current new)
+                                       #:data      (meld-data current new)
+                                       #:kids      (meld-kids current new)
+                                       ))]
+      ['meld/new        (λ (current new)
+                          (trie-node++ #:terminal? (new-term? current new)
+                                       #:data      (meld-data new current)
+                                       #:kids      (meld-kids new current)))]))
 
   (let add-next-val ([the-trie root]
                      [lst      elements])
@@ -250,9 +325,7 @@
       [(list key others ...)
        #:when (trie-has-key? the-trie key) ; this is unneeded but for self-documentation
        (define node (trie-get-node the-trie key))
-       (when (null? others)
-         (set-trie-node-terminal?! node #t))
-
+       (set-trie-node-terminal?! node (or (trie-node.terminal? node) (null? others)))
        (add-next-val (trie-node.kids node) others)])))
 
 

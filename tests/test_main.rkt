@@ -141,7 +141,7 @@
        "...and correctly updated the 'terminal?' value for bik"))
 
   (test-suite
-   "trie-unroll and trie-unroll+data"
+   "trie-unroll"
    (define root (make-trie-root))
    (trie-add-item! root (explode-path "/home/dstorrs/writing/patchwork-realms"))
    (trie-add-item! root (explode-path "/"))
@@ -179,11 +179,233 @@
         "X/home/dstorrs/writing/patchwork-realms"
         "X/home/dstorrs/writing/two-year-emperor")
        "successfully unrolled trie with with args but no data")
+   )
+
+  (test-suite
+   "get subtrie"
+   (define root (make-trie-root))
+   (trie-add-item! root (explode-path "/home/dstorrs/writing/patchwork-realms"))
+
+   (is (trie-get-subtrie root (explode-path "/home/dstorrs/writing"))
+       (h (bp "patchwork-realms")
+          (trie-node++ #:terminal? #t))
+       "successfully got subtrie")
+
+   (throws
+    (thunk
+     (trie-get-subtrie root (explode-path "/no/such/key")))
+    #px"subtrie not found"
+    "correctly fails if there is no such key"
+    ))
+
+  (test-suite
+   "trie-add-item+data"
+   (define (get-fresh)
+     (define root (make-trie-root))
+     (trie-add-item! root (list "/" "home" "dstorrs" "writing")))
+
+   (is (get-fresh)
+       (h "/"
+          (trie-node++
+           #:terminal? #f
+           #:kids (h "home"
+                     (trie-node++
+                      #:terminal? #f
+                      #:kids (h "dstorrs"
+                                (trie-node++
+                                 #:terminal? #f
+                                 #:kids (h "writing"
+                                           (trie-node++
+                                            #:terminal? #t))))))))
+       "get-fresh works as expected")
+
+   (is (trie-add-item+data! (get-fresh)
+                            #:combine 'replace
+                            (list
+                             (cons "/"
+                                   (trie-node++ #:terminal? #t
+                                                #:data (hash 'dir #t)))))
+       (h "/"
+          (trie-node++
+           #:terminal? #t
+           #:data (hash 'dir #t)
+           #:kids (h "home"
+                     (trie-node++
+                      #:terminal? #f
+                      #:kids (h "dstorrs"
+                                (trie-node++
+                                 #:terminal? #f
+                                 #:kids (h "writing"
+                                           (trie-node++
+                                            #:terminal? #t))))))))
+       "trie-add-item+data #:combine 'replace with a shorter version of an existing item will keep the longer item but update the properties of the shorter version")
+
+   (is (trie-add-item+data! (get-fresh)
+                            #:combine 'keep
+                            (list
+                             (cons "/"
+                                   (trie-node++ #:terminal? #t
+                                                #:data (hash 'dir #t)))))
+       (h "/"
+          (trie-node++
+           #:terminal? #t
+           #:data (hash 'dir #t)
+           #:kids (h "home"
+                     (trie-node++
+                      #:terminal? #f
+                      #:kids (h "dstorrs"
+                                (trie-node++
+                                 #:terminal? #f
+                                 #:kids (h "writing"
+                                           (trie-node++
+                                            #:terminal? #t))))))))
+       "trie-add-item+data #:combine 'keep with a shorter version of an existing item will keep the longer item but update the properties of the shorter version")
+   
+   (is (trie-add-item+data! (get-fresh)
+                            #:combine 'keep
+                            (list "/"
+                                  "home"
+                                  (cons "dstorrs"
+                                        (trie-node++ #:terminal? #t
+                                                     #:data 'user-home))
+                                  "writing"
+                                  (cons "two-year-emperor"
+                                        (trie-node++ #:terminal? #t
+                                                     #:data (hash 'type 'novel)))))
+       (h "/"
+          (trie-node++
+           #:terminal? #f
+           #:kids (h "home"
+                     (trie-node++
+                      #:terminal? #f
+                      #:kids (h "dstorrs"
+                                (trie-node++
+                                 #:terminal? #t
+                                 #:data 'user-home
+                                 #:kids (h "writing"
+                                           (trie-node++
+                                            #:terminal? #t
+                                            #:kids (h "two-year-emperor"
+                                                      (trie-node++
+                                                       #:terminal? #t
+                                                       #:data (hash 'type 'novel)
+                                                       #:kids (h)))))))))))
+       "trie-add-item+data! worked with mode 'keep")
+
+   (is (trie-add-item+data! (get-fresh)
+                            #:combine 'replace
+                            (list "/"
+                                  "home"
+                                  (cons "dstorrs"
+                                        (trie-node++ #:terminal? #t
+                                                     #:data 'user-home))
+                                  "writing"
+                                  (cons "two-year-emperor"
+                                        (trie-node++ #:terminal? #t
+                                                     #:data (hash 'type 'novel)))))
+       (h "/"
+          (trie-node++
+           #:terminal? #f
+           #:kids (h "home"
+                     (trie-node++
+                      #:terminal? #f
+                      #:kids (h "dstorrs"
+                                (trie-node++
+                                 #:terminal? #t
+                                 #:data 'user-home
+                                 #:kids (h "writing"
+                                           (trie-node++
+                                            #:terminal? #t
+                                            #:kids (h "two-year-emperor"
+                                                      (trie-node++
+                                                       #:terminal? #t
+                                                       #:data (hash 'type 'novel)
+                                                       #:kids (h)))))))))))
+       "trie-add-item+data! worked with mode 'replace.  This overwrote the terminal? for 'writing'")
+
+   (is (trie-add-item+data! (get-fresh)
+                            #:combine 'meld/current
+                            (list "/"
+                                  "home"
+                                  (cons "dstorrs"
+                                        (trie-node++ #:terminal? #t
+                                                     #:data 'user-home))
+                                  (cons "writing"
+                                        (trie-node++ #:terminal? #t))
+                                  (cons "two-year-emperor"
+                                        (trie-node++ #:terminal? #t
+                                                     #:data (hash 'type 'novel)))))
+       (h "/"
+          (trie-node++
+           #:terminal? #f
+           #:kids (h "home"
+                     (trie-node++
+                      #:terminal? #f
+                      #:kids (h "dstorrs"
+                                (trie-node++
+                                 #:terminal? #t
+                                 #:data 'user-home
+                                 #:kids (h "writing"
+                                           (trie-node++
+                                            #:terminal? #t
+                                            #:kids (h "two-year-emperor"
+                                                      (trie-node++
+                                                       #:terminal? #t
+                                                       #:data (hash 'type 'novel)
+                                                       #:kids (h)))))))))))
+       "trie-add-item+data! worked with mode 'meld/current")
+
+   (is (trie-add-item+data! (trie-add-item+data! (get-fresh)
+                                                 #:combine 'replace
+                                                 (list
+                                                  (cons "/"
+                                                        (trie-node++ #:terminal? #t
+                                                                     #:data (hash 'dir #t)))
+                                                  (cons "home"
+                                                        (trie-node++ #:terminal? #t
+                                                                     #:data 'home))))
+                            #:combine 'meld/new
+                            (list (cons "/" (trie-node++ #:terminal? #f
+                                                         #:data (hash 'root #t)))
+                                  (cons "home" (trie-node++ #:terminal? #f #:data 'users-home))
+                                  (cons "dstorrs"
+                                        (trie-node++ #:terminal? #t
+                                                     #:data 'dks-home))
+                                  (cons "writing"
+                                        (trie-node++ #:terminal? #t))
+                                  (cons "two-year-emperor"
+                                        (trie-node++ #:terminal? #t
+                                                     #:data (hash 'type 'novel)))))
+       (h "/"
+          (trie-node++
+           #:terminal? #t
+           #:data (hash 'dir #t 'root #t)
+           #:kids (h "home"
+                     (trie-node++
+                      #:terminal? #t
+                      #:data '(users-home home)
+                      #:kids (h "dstorrs"
+                                (trie-node++
+                                 #:terminal? #t
+                                 #:data 'dks-home
+                                 #:kids (h "writing"
+                                           (trie-node++
+                                            #:terminal? #t
+                                            #:kids (h "two-year-emperor"
+                                                      (trie-node++
+                                                       #:terminal? #t
+                                                       #:data (hash 'type 'novel)
+                                                       #:kids (h)))))))))))
+       "trie-add-item+data! worked with mode 'meld/new")
+   )
+
+  (test-suite
+   "trie-unroll-item+data"
 
    (parameterize ([trie-node-default-data 'def])
      (define the-trie
        (trie-add-item+data! (make-trie-root)
-                            #:mode 'replace
+                            #:combine 'keep
                             (list "/"
                                   (cons "home"
                                         (trie-node++ #:terminal? #f
@@ -234,7 +456,7 @@
             'success!
             ]
            [_ #f])
-         "using trie-unroll+data correctly returns the data")
+         "using trie-unroll+data with no args correctly returns the data")
 
      (trie-add-item! the-trie (map path->string (explode-path "/foo/bar")))
      (trie-add-item! the-trie (map path->string (explode-path "/jaz/bar")))
@@ -280,124 +502,27 @@
                  (cons "/"   (trie-node #f 'def (h)))
                  (cons "jaz" (trie-node #f 'def (h)))
                  (cons "bar" (trie-node #t 'def (h)))))
-          "using trie-unroll+data correctly returns the data")))
+          "using trie-unroll+data with args correctly returns the data"))
 
-  (test-suite
-   "get subtrie"
-   (define root (make-trie-root))
-   (trie-add-item! root (explode-path "/home/dstorrs/writing/patchwork-realms"))
+   (let ([root (make-trie-root)])
+     (trie-add-item+data! root
+                          #:combine 'replace
+                          (list "/"
+                                "home"
+                                (cons "dstorrs"
+                                      (trie-node++ #:terminal? #t
+                                                   #:data (hash 'user "David K. Storrs")))))
+     (trie-add-item+data! root
+                          #:combine hash-meld
+                          (list "/"
+                                "home"
+                                "dstorrs"
+                                "writing"
+                                (cons "baby-blues"
+                                      (trie-node++ #:terminal? #t
+                                                   #:data (hash 'type 'novella)))))
 
-   (is (trie-get-subtrie root (explode-path "/home/dstorrs/writing"))
-       (h (bp "patchwork-realms")
-          (trie-node++ #:terminal? #t))
-       "successfully got subtrie")
-
-   (throws
-    (thunk
-     (trie-get-subtrie root (explode-path "/no/such/key")))
-    #px"subtrie not found"
-    "correctly fails if there is no such key"
-    ))
-
-  (test-suite
-   "trie-add-item+data"
-   (define (get-fresh)
-     (define root (make-trie-root))
-     (trie-add-item! root (list "/" "home" "dstorrs" "writing")))
-
-   (is (get-fresh)
-       (h "/"
-          (trie-node++ #:terminal? #f
-                       #:kids (h "home"
-                                 (trie-node++ #:terminal? #f
-                                              #:kids (h "dstorrs"
-                                                        (trie-node++ #:terminal? #f
-                                                                     #:kids (h "writing"
-                                                                               (trie-node++ #:terminal? #t))))))))
-       "get-fresh works as expected")
-
-   (is (trie-add-item+data! (get-fresh)
-                            #:mode 'replace
-                            (list "/"
-                                  "home"
-                                  (cons "dstorrs"
-                                        (trie-node++ #:terminal? #t
-                                                     #:data 'user-home))
-                                  "writing"
-                                  (cons "two-year-emperor"
-                                        (trie-node++ #:terminal? #t
-                                                     #:data (hash 'type 'novel)))))
-       (h "/"
-          (trie-node++
-           #:terminal? #f
-           #:kids (h "home"
-                     (trie-node++
-                      #:terminal? #f
-                      #:kids (h "dstorrs"
-                                (trie-node++
-                                 #:terminal? #t
-                                 #:data 'user-home
-                                 #:kids (h "writing"
-                                           (trie-node++
-                                            #:terminal? #f
-                                            #:kids (h "two-year-emperor"
-                                                      (trie-node++
-                                                       #:terminal? #t
-                                                       #:data (hash 'type 'novel)
-                                                       #:kids (h)))))))))))
-       "trie-add-item+data! worked with mode 'replace"))
-  #;
-  (is (trie-add-item+data! ((make-trie-root))
-                           #:mode 'keep-theirs
-                           (list "/"
-                                 (cons "dstorrs"
-                                       (trie-node++ #:terminal? #t
-                                                    #:data 'home))
-                                 "writing"
-                                 (cons "two-year-emperor"
-                                       (trie-node++ #:terminal? #t
-                                                    #:data (hash 'type 'novel)))))
-      (h "/"
-         (trie-node++
-          #:terminal? #t
-          #:kids (h "dstorrs"
-                    (trie-node++
-                     #:terminal? #t
-                     #:data 'home
-                     #:kids (h "writing"
-                               (trie-node++
-                                #:terminal? #t
-                                #:kids (h "two-year-emperor"
-                                          (trie-node++
-                                           #:terminal? #t
-                                           #:data (hash 'type 'novel)))))))))
-      "inserted a root node with data")
-
-  #;
-  (is (trie-add-item+data! (make-trie-root)
-                           #:mode 'keep-ours
-                           (list "/"
-                                 (cons "dstorrs"
-                                       (trie-node++ #:terminal? #t
-                                                    #:data 'home))
-                                 "writing"
-                                 (cons "two-year-emperor"
-                                       (trie-node++ #:terminal? #t
-                                                    #:data (hash 'type 'novel)))))
-      (h "/"
-         (trie-node++
-          #:terminal? #t
-          #:kids (h "dstorrs"
-                    (trie-node++
-                     #:terminal? #t
-                     #:data 'home
-                     #:kids (h "writing"
-                               (trie-node++
-                                #:terminal? #t
-                                #:kids (h "two-year-emperor"
-                                          (trie-node++ #:terminal? #t
-                                                       #:data (hash 'type 'novel)))))))))
-      "inserted a root node with data")
-
+     )
+   )
 
   )
