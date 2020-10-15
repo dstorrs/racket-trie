@@ -406,7 +406,7 @@
                                    #:sort    [sort-func identity]
                                    #:post    [post      identity])
   (->* (trie?)
-       (#:pre  (-> any/c any/c) #:combine (-> list? any/c)
+       (#:pre  (-> (cons/c any/c trie-node?) any/c) #:combine (-> list? any/c)
         #:sort (-> list? list?) #:post procedure?)
        any)
 
@@ -414,9 +414,10 @@
   (define (unroll the-trie result elements)
     (match the-trie
       [(hash-table)  result]
-      [(hash-table (key (trie-node is-terminal? data kids)))
-       (define element (cons key  (trie-node++ #:terminal? is-terminal?
-                                               #:data      data)))
+      [(hash-table (key (and (trie-node is-terminal? data kids) node)))
+       (define element (pre (cons key
+                                  (trie-node++ #:terminal? is-terminal?
+                                               #:data      data))))
        (define new-elements (cons element elements))
        (unroll kids
                (if is-terminal?
