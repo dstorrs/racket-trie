@@ -106,7 +106,7 @@
 
 (define trie-node-default-data (make-parameter (void)))
 
-(struct++ trie-node ([terminal?                       boolean?]
+(struct++ trie-node ([(terminal? #f)                  boolean?]
                      [(data (trie-node-default-data)) any/c]
                      [(kids (make-trie-root))         trie?])
           (#:omit-reflection)
