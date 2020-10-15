@@ -207,13 +207,10 @@
    (is (get-fresh)
        (h "/"
           (trie-node++
-           #:terminal? #f
            #:kids (h "home"
                      (trie-node++
-                      #:terminal? #f
                       #:kids (h "dstorrs"
                                 (trie-node++
-                                 #:terminal? #f
                                  #:kids (h "writing"
                                            (trie-node++
                                             #:terminal? #t))))))))
@@ -231,10 +228,8 @@
            #:data (hash 'dir #t)
            #:kids (h "home"
                      (trie-node++
-                      #:terminal? #f
                       #:kids (h "dstorrs"
                                 (trie-node++
-                                 #:terminal? #f
                                  #:kids (h "writing"
                                            (trie-node++
                                             #:terminal? #t))))))))
@@ -252,10 +247,8 @@
            #:data (hash 'dir #t)
            #:kids (h "home"
                      (trie-node++
-                      #:terminal? #f
                       #:kids (h "dstorrs"
                                 (trie-node++
-                                 #:terminal? #f
                                  #:kids (h "writing"
                                            (trie-node++
                                             #:terminal? #t))))))))
@@ -274,10 +267,8 @@
                                                      #:data (hash 'type 'novel)))))
        (h "/"
           (trie-node++
-           #:terminal? #f
            #:kids (h "home"
                      (trie-node++
-                      #:terminal? #f
                       #:kids (h "dstorrs"
                                 (trie-node++
                                  #:terminal? #t
@@ -305,10 +296,8 @@
                                                      #:data (hash 'type 'novel)))))
        (h "/"
           (trie-node++
-           #:terminal? #f
            #:kids (h "home"
                      (trie-node++
-                      #:terminal? #f
                       #:kids (h "dstorrs"
                                 (trie-node++
                                  #:terminal? #t
@@ -337,10 +326,8 @@
                                                      #:data (hash 'type 'novel)))))
        (h "/"
           (trie-node++
-           #:terminal? #f
            #:kids (h "home"
                      (trie-node++
-                      #:terminal? #f
                       #:kids (h "dstorrs"
                                 (trie-node++
                                  #:terminal? #t
@@ -365,9 +352,8 @@
                                                         (trie-node++ #:terminal? #t
                                                                      #:data 'home))))
                             #:combine 'meld/new
-                            (list (cons "/" (trie-node++ #:terminal? #f
-                                                         #:data (hash 'root #t)))
-                                  (cons "home" (trie-node++ #:terminal? #f #:data 'users-home))
+                            (list (cons "/" (trie-node++ #:data (hash 'root #t)))
+                                  (cons "home" (trie-node++  #:data 'users-home))
                                   (cons "dstorrs"
                                         (trie-node++ #:terminal? #t
                                                      #:data 'dks-home))
@@ -408,8 +394,7 @@
                             #:combine 'keep
                             (list "/"
                                   (cons "home"
-                                        (trie-node++ #:terminal? #f
-                                                     #:data 'all-users))
+                                        (trie-node++ #:data 'all-users))
                                   (cons "dstorrs"
                                         (trie-node++ #:terminal? #t
                                                      #:data (hash 'type 'dir
