@@ -12,7 +12,7 @@
 (provide make-trie-root
          trie?
          trie-is-empty?
-         clear-trie
+         clear-trie!
          trie-get-elements
          trie-get-subtrie
          trie-add-item!
@@ -142,7 +142,7 @@
   (-> trie? boolean?)
   (hash-empty? t))
 
-(define/contract (clear-trie t)
+(define/contract (clear-trie! t)
   (-> trie? trie?)
   (hash-clear! t))
 
