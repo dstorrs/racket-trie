@@ -505,10 +505,7 @@
                                 "writing"
                                 (cons "baby-blues"
                                       (trie-node++ #:terminal? #t
-                                                   #:data (hash 'type 'novella)))))
-
-     )
-   )
+                                                   #:data (hash 'type 'novella)))))))
 
   )
 
