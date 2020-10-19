@@ -28,6 +28,7 @@
          trie-node.data
          trie-node.kids
 
+         trie-node/convert->list
          trie-node-default-data
          )
 
@@ -109,7 +110,12 @@
 (struct++ trie-node ([(terminal? #f)                  boolean?]
                      [(data (trie-node-default-data)) any/c]
                      [(kids (make-trie-root))         trie?])
-          (#:omit-reflection)
+          (#:omit-reflection
+           #:convert-for (list (#:post (  (h)
+                                         (list (hash-ref h 'terminal?)
+                                               (hash-ref h 'data)
+                                               (hash-ref h 'kids))))) 
+           )
           #:prefab
           #:mutable)
 

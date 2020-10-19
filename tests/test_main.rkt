@@ -28,7 +28,13 @@
    (parameterize ([trie-node-default-data 'x])
      (is (trie-node.data (trie-node++ #:terminal? #t))
          'x
-         "trie-node defaults data as expected when parameterized")))
+         "trie-node defaults data as expected when parameterized"))
+
+   (is (trie-node/convert->list (trie-node++ #:terminal? #t
+                                             #:data 'foo))
+       (list #t 'foo (make-hash))
+       "trie-node/convert->list works")
+   )
 
   (test-suite
    "make-trie-root and trie?"
