@@ -32,7 +32,7 @@ The data field of a trie-node is considered @emph{not set} if it is @racket[equa
 
 Trie-nodes are structs created with the @racketmodname[struct-plus-plus] module.  They therefore have keyword constructors with default values and contracts that validate the arguments, as well as dotted accessors (e.g. @racket[trie-node.data]) in addition to the standard ones (e.g. @racket[trie-node-data]).  All of the normal struct function exist, but you are encouraged to work with the new versions.
 
-When using @racket[trie-add-item+data!] it will sometimes be the case that the item specifies information for a node that already exists.  In this case the existing node is called @racketid[current] and the one that is being added is @racketid[current].
+When using @racket[trie-add-item+data!] it will sometimes be the case that the item specifies information for a node that already exists.  In this case the existing node is called @racketid[current] and the one that is being added is @racketid[new].
 
 Whenever it is necessary to combine two nodes, either @racketid[current] or @racketid[new] will have @emph{priority}, meaning that its values will win in the case of conflict.  An example from general Racket code is that when doing @racket[hash-union] the hash that comes last in the list has priority because its fields will override those of earlier hashes.
 
