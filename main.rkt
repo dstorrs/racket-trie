@@ -111,10 +111,10 @@
                      [(data (trie-node-default-data)) any/c]
                      [(kids (make-trie-root))         trie?])
           (#:omit-reflection
-           #:convert-for (list (#:post (  (h)
+           #:convert-for (list (#:post (lambda (h)
                                          (list (hash-ref h 'terminal?)
                                                (hash-ref h 'data)
-                                               (hash-ref h 'kids))))) 
+                                               (hash-ref h 'kids)))))
            )
           #:prefab
           #:mutable)
@@ -280,7 +280,7 @@
   (define (new-term? . args) (ormap trie-node.terminal? args))
   (define (meld-data . args) (apply meld (map trie-node.data args)))
   (define (meld-kids . args) (apply meld (map trie-node.kids args)))
-  
+
   (define combiner
     (match combine-method
       [(? procedure?)   combine-method]
